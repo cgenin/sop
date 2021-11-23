@@ -6,11 +6,13 @@ use nom::character::complete::{digit1, multispace0, multispace1};
 use nom::combinator::opt;
 use nom::error::{Error, ErrorKind};
 use nom::IResult;
+use nom::multi::separated_list0;
 use nom::sequence::tuple;
 
-use crate::commons::{Expression, len_as_u16, sql_identifier};
-use crate::constraints::InlineOrOutlineConstraints;
+use crate::commons::{Expression, expression, len_as_u16, sql_identifier};
+use crate::constraints::{inline_or_outline_constraint, InlineOrOutlineConstraints};
 use crate::data_types::DataType::Number;
+use crate::encryption::{encryption_spec, EncryptionSpec};
 use crate::table::bytes_to_string;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -240,9 +242,8 @@ pub struct ColumnDefinition {
     datatype: DataType,
     sort: bool,
     default: Option<Expression>,
-    // TODO
-    encrypt: bool,
-    inline_constraint: Vec<InlineOrOutlineConstraints>,
+    encrypt: Option<EncryptionSpec>,
+    inline_constraints: Vec<InlineOrOutlineConstraints>,
 }
 
 impl fmt::Display for ColumnDefinition {
@@ -251,13 +252,20 @@ impl fmt::Display for ColumnDefinition {
         if self.sort {
             write!(f, " SORT")?;
         }
-        // TODO
+        if self.default.is_some() {
+            write!(f, " DEFAULT {}", self.default.as_ref().unwrap())?;
+        }
+        if self.encrypt.is_some() {
+            write!(f, " ENCRYPT {}", self.encrypt.as_ref().unwrap())?;
+        }
+        let strings:Vec<String> = self.inline_constraints.iter().map(|i| format!("{}", i)).collect();
+        write!(f, " {}", strings.join(" "))?;
         Ok(())
     }
 }
 
 pub fn column_definition(i: &[u8]) -> IResult<&[u8], ColumnDefinition> {
-    let (remaining_input, (cn, _, datatype, opt_sort)) = tuple((
+    let (remaining_input, (cn, _, datatype, opt_sort, opt_defualt, opt_encrypt, _, inline_constraints )) = tuple((
         sql_identifier,
         multispace1,
         data_types,
@@ -266,23 +274,44 @@ pub fn column_definition(i: &[u8]) -> IResult<&[u8], ColumnDefinition> {
                 multispace1,
                 tag_no_case("SORT")
             ))
-        )
+        ),
+        opt(
+            tuple((
+                multispace1,
+                tag_no_case("DEFAULT"),
+                multispace1,
+                expression
+            ))
+        ),
+        opt(
+            tuple((
+                multispace1,
+                tag_no_case("ENCRYPT"),
+                multispace1,
+                encryption_spec
+            ))
+        ),
+        multispace0,
+        separated_list0(tag(" "), inline_or_outline_constraint)
     ))(i)?;
     let column_name = bytes_to_string(cn);
     let sort = opt_sort.is_some();
+    let default = opt_defualt.map(|t| t.3);
+    let encrypt = opt_encrypt.map(|t| t.3);
     Ok((remaining_input, ColumnDefinition {
         column_name,
         datatype,
         sort,
-        default: None,
-        encrypt: false,
-        inline_constraint: false,
+        default,
+        encrypt,
+        inline_constraints,
     }))
 }
 
 
 #[cfg(test)]
 mod tests {
+    use crate::commons::Prefix;
     use super::*;
 
     #[test]
@@ -292,8 +321,24 @@ mod tests {
             datatype: DataType::Number(NumberPrecision::new(2)),
             sort: false,
             default: None,
-            encrypt: false,
-            inline_constraint: false,
+            encrypt: None,
+            inline_constraints: Vec::new(),
+        });
+        assert_eq!(column_definition(b"TEST1 NUMBER(2) SORT").unwrap().1, ColumnDefinition {
+            column_name: "TEST1".to_string(),
+            datatype: DataType::Number(NumberPrecision::new(2)),
+            sort: true,
+            default: None,
+            encrypt: None,
+            inline_constraints: Vec::new(),
+        });
+        assert_eq!(column_definition(b"TEST1 NUMBER(2) DEFAULT NOT NULL").unwrap().1, ColumnDefinition {
+            column_name: "TEST1".to_string(),
+            datatype: DataType::Number(NumberPrecision::new(2)),
+            sort: false,
+            default: Some(Expression::Prefix(Prefix::new( "NOT", Expression::Null))),
+            encrypt: None,
+            inline_constraints: Vec::new(),
         });
     }
 

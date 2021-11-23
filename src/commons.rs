@@ -4,12 +4,12 @@ use std::str::FromStr;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while1};
 use nom::character::{is_alphabetic, is_alphanumeric};
-use nom::character::complete::{alphanumeric1, digit1, multispace0, multispace1};
+use nom::character::complete::{digit1, multispace0, multispace1};
 use nom::combinator::opt;
 use nom::error::{Error, ErrorKind};
 use nom::IResult;
 use nom::multi::separated_list0;
-use nom::sequence::{delimited, preceded, tuple};
+use nom::sequence::{delimited,  tuple};
 
 use crate::table::bytes_to_string;
 
@@ -54,7 +54,7 @@ impl fmt::Display for Parenthesis {
 }
 
 impl Parenthesis {
-    fn new(exp: Expression) -> Parenthesis {
+   pub fn new(exp: Expression) -> Parenthesis {
         let exp = Box::new(exp);
         Parenthesis { exp }
     }
@@ -74,7 +74,8 @@ impl fmt::Display for Prefix {
 }
 
 impl Prefix {
-    fn new(prefix: String, expression: Expression) -> Prefix {
+    pub fn new(prefixe: &str, expression: Expression) -> Prefix {
+        let prefix = prefixe.to_string();
         let exp = Box::new(expression);
         Prefix {
             prefix,
@@ -98,7 +99,8 @@ impl fmt::Display for Operator {
 }
 
 impl Operator {
-    fn new(operator_name: String, expression_left: Expression, expression_right: Expression) -> Operator {
+    pub fn new(operator_nam: &str, expression_left: Expression, expression_right: Expression) -> Operator {
+        let operator_name  = operator_nam.to_string();
         let exp_left = Box::new(expression_left.clone());
         let exp_right = Box::new(expression_right.clone());
         Operator { operator_name, exp_left, exp_right }
@@ -123,8 +125,9 @@ impl fmt::Display for Function {
 }
 
 impl Function {
-    fn new(function_name: String,
+    pub fn new(name: &str,
            params: Vec<Expression>) -> Function {
+        let function_name = name.to_string();
         let parameters = params.iter().map(|e| Box::new(e.clone())).collect();
         Function { function_name, parameters }
     }
@@ -151,10 +154,12 @@ impl fmt::Display for ComparisonOperator {
 }
 
 impl ComparisonOperator {
-    fn new(preceded: String,
-           operator_name: String,
+    pub fn new(preceded_op: &str,
+           name: &str,
            exp_left: Expression,
            params: Vec<Expression>) -> ComparisonOperator {
+        let preceded= preceded_op.to_string();
+        let operator_name = name.to_string();
         let expression_left = Box::new(exp_left);
         let expressions_right = params.iter().map(|e| Box::new(e.clone())).collect();
         ComparisonOperator { preceded, operator_name, expression_left, expressions_right }
@@ -215,15 +220,18 @@ pub struct ColumnExpression {
 }
 
 impl ColumnExpression {
-    pub fn new(column_name: String) -> ColumnExpression {
+    pub fn new(name: &str) -> ColumnExpression {
+        let column_name = name.to_string();
         ColumnExpression { column_name, alias_or_table: None, schema: None }
     }
-    pub fn new_with_table(column_name: String, table: String) -> ColumnExpression {
-        ColumnExpression { column_name, alias_or_table: Some(table), schema: None }
+    pub fn new_with_table(name: &str, table: &str) -> ColumnExpression {
+        let column_name = name.to_string();
+        ColumnExpression { column_name, alias_or_table: Some(table.to_string()), schema: None }
     }
 
-    pub fn new_with_schema(column_name: String, table: String, schema: String) -> ColumnExpression {
-        ColumnExpression { column_name, alias_or_table: Some(table), schema: Some(schema) }
+    pub fn new_with_schema(name: &str, table: &str, schema: &str) -> ColumnExpression {
+        let column_name = name.to_string();
+        ColumnExpression { column_name, alias_or_table: Some(table.to_string()), schema: Some(schema.to_string()) }
     }
 }
 
@@ -312,10 +320,10 @@ fn column_expression(i: &[u8]) -> IResult<&[u8], Expression> {
         let schema = bytes_to_string(sch);
         opt_table.map(|(ta, _)| {
             let table = bytes_to_string(ta);
-            ColumnExpression::new_with_schema(column_name.clone(), table, schema.clone())
+            ColumnExpression::new_with_schema(column_name.as_str(), table.as_str(), schema.as_str())
         })
-            .unwrap_or(ColumnExpression::new_with_table(column_name.clone(), schema.clone()))
-    }).unwrap_or(ColumnExpression::new(column_name.clone()));
+            .unwrap_or(ColumnExpression::new_with_table(column_name.as_str(), schema.as_str()))
+    }).unwrap_or(ColumnExpression::new(column_name.as_str()));
     Ok((remaining_input, Expression::Column(column_expression)))
 }
 
@@ -352,7 +360,7 @@ fn prefix_expression(i: &[u8]) -> IResult<&[u8], Expression> {
         expression,
     ))(i)?;
     let prefix = bytes_to_string(pref).to_uppercase();
-    let parenthesis = Prefix::new(prefix, expression);
+    let parenthesis = Prefix::new(prefix.as_str(), expression);
     Ok((remaining_input, Expression::Prefix(parenthesis)))
 }
 
@@ -380,7 +388,7 @@ fn operator_expression(i: &[u8]) -> IResult<&[u8], Expression> {
         terminal_expression,
     ))(i)?;
     let operation_name = bytes_to_string(op_name).to_uppercase();
-    let parenthesis = Operator::new(operation_name, expression_left, expression_right);
+    let parenthesis = Operator::new(operation_name.as_str(), expression_left, expression_right);
     Ok((remaining_input, Expression::Operator(parenthesis)))
 }
 
@@ -396,7 +404,7 @@ fn logical_expression(i: &[u8]) -> IResult<&[u8], Expression> {
         operator_expression,
     ))(i)?;
     let operation_name = bytes_to_string(op_name).to_uppercase();
-    let parenthesis = Operator::new(operation_name, expression_left, expression_right);
+    let parenthesis = Operator::new(operation_name.as_str(), expression_left, expression_right);
     Ok((remaining_input, Expression::Operator(parenthesis)))
 }
 
@@ -414,7 +422,7 @@ fn function_expression(i: &[u8]) -> IResult<&[u8], Expression> {
         tag(")"),
     ))(i)?;
     let function_name = bytes_to_string(func_name).to_uppercase();
-    let func = Function::new(function_name, vec_params);
+    let func = Function::new(function_name.as_str(), vec_params);
     Ok((remaining_input, Expression::Function(func)))
 }
 
@@ -449,7 +457,7 @@ fn comparison_expression(i: &[u8]) -> IResult<&[u8], Expression> {
 
     let operation_name = bytes_to_string(op).to_uppercase();
     let preceded = bytes_to_string(prec);
-    let func = ComparisonOperator::new(preceded, operation_name, expression_left, vec_params);
+    let func = ComparisonOperator::new(preceded.as_str(), operation_name.as_str(), expression_left, vec_params);
     Ok((remaining_input, Expression::ComparisonOperator(func)))
 }
 
@@ -490,17 +498,17 @@ mod tests {
         assert_eq!(expression(b"'essai'").unwrap().1, Expression::String("essai".to_string()));
         assert_eq!(expression(b"1").unwrap().1, Expression::Number(1, 0));
         assert_eq!(expression(b"+1").unwrap().1, Expression::Prefix(
-            Prefix::new("+".to_string(),
+            Prefix::new("+",
                         Expression::Number(1, 0),
             )));
 
         assert_eq!(expression(b"2+1").unwrap().1, Expression::Operator(
-            Operator::new("+".to_string(),
+            Operator::new("+",
                           Expression::Number(2, 0),
                           Expression::Number(1, 0),
             )));
         assert_eq!(expression(b"-2.5").unwrap().1, Expression::Prefix(
-            Prefix::new("-".to_string(),
+            Prefix::new("-",
                         Expression::Number(2, 5),
             )));
         assert_eq!(expression(b"( 2.5)").unwrap().1, Expression::Parenthesis(
@@ -510,43 +518,43 @@ mod tests {
         assert_eq!(expression(b"masequence.NEXTVAL").unwrap().1, Expression::SequenceNextval("masequence".to_string()));
         assert_eq!(expression(b"masequence.CURRVAL").unwrap().1, Expression::SequenceCurval("masequence".to_string()));
         assert_eq!(expression(b"sch.ta.colum").unwrap().1, Expression::Column(ColumnExpression::new_with_schema(
-            "colum".to_string(),
-            "ta".to_string(),
-            "sch".to_string())
+            "colum",
+            "ta",
+            "sch")
         ));
         assert_eq!(expression(b"ta.colum").unwrap().1, Expression::Column(ColumnExpression::new_with_table(
-            "colum".to_string(),
-            "ta".to_string())
+            "colum",
+            "ta")
         ));
 
         assert_eq!(expression(b"colum").unwrap().1, Expression::Column(ColumnExpression::new(
-            "colum".to_string())
+            "colum")
         ));
 
         assert_eq!(expression(b"maColonne is not null").unwrap().1,
-                   Expression::Operator(Operator::new("IS".to_string(),
+                   Expression::Operator(Operator::new("IS",
                                                       Expression::Column(ColumnExpression::new(
-                                                          "maColonne".to_string())),
+                                                          "maColonne")),
                                                       Expression::Prefix(
-                                                          Prefix::new("NOT".to_string(), Expression::Null))))
+                                                          Prefix::new("NOT", Expression::Null))))
         );
         assert_eq!(expression(b"TO_DATE('2021-12-01', 'YYYY-MM-DD')").unwrap().1,
-                   Expression::Function(Function::new("TO_DATE".to_string(),
+                   Expression::Function(Function::new("TO_DATE",
                                                       vec![
                                                           Expression::String("2021-12-01".to_string()),
                                                           Expression::String("YYYY-MM-DD".to_string()),
                                                       ]))
         );
         assert_eq!(expression(b"maColonne is not null AND b=2").unwrap().1,
-                   Expression::Operator(Operator::new("AND".to_string(),
-                                                      Expression::Operator(Operator::new("IS".to_string(),
+                   Expression::Operator(Operator::new("AND",
+                                                      Expression::Operator(Operator::new("IS",
                                                                                          Expression::Column(ColumnExpression::new(
-                                                                                             "maColonne".to_string())),
+                                                                                             "maColonne")),
                                                                                          Expression::Prefix(
-                                                                                             Prefix::new("NOT".to_string(), Expression::Null)))),
-                                                      Expression::Operator(Operator::new("=".to_string(),
+                                                                                             Prefix::new("NOT", Expression::Null)))),
+                                                      Expression::Operator(Operator::new("=",
                                                                                          Expression::Column(ColumnExpression::new(
-                                                                                             "b".to_string())),
+                                                                                             "b")),
                                                                                          Expression::Number(2, 0)))))
         );
     }
