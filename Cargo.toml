@@ -1,0 +1,23 @@
+[package]
+name = "sop"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "sop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sop"
+path = "src/bin/sop.rs"
+doc = false
+
+[dependencies]
+nom="7.1.0"
+serde = "1.0"
+serde_derive = "1.0"
+
+[dev-dependencies]
+pretty_assertions = "0.5.1"
