@@ -48,19 +48,21 @@ impl fmt::Display for EncryptionSpec {
 }
 
 fn salt(i: &[u8]) -> IResult<&[u8], Salt> {
-    let (remaining_input, (_, opt)) = tuple((
+    let res: IResult<&[u8], (&[u8], &[u8])> = tuple((
         multispace0,
         alt((
             tag_no_case("SALT"),
             tag_no_case("NO SALT")
         ))
-    ))(i)?;
-    let typ = bytes_to_string(opt).to_uppercase();
-    match typ.as_str() {
-        "SALT" => Ok((remaining_input, Salt::Salt)),
-        "NO SALT" => Ok((remaining_input, Salt::NoSalt)),
-        _ => Ok((remaining_input, Salt::None)),
-    }
+    ))(i);
+    res.map(|(remaining_input, t)| {
+        let typ = bytes_to_string(t.1).to_uppercase();
+        match typ.as_str() {
+            "SALT" => Ok((remaining_input, Salt::Salt)),
+            "NO SALT" => Ok((remaining_input, Salt::NoSalt)),
+            _ => Ok((remaining_input, Salt::None)),
+        }
+    }).unwrap_or(Ok((i, Salt::None)))
 }
 
 pub fn encryption_spec(i: &[u8]) -> IResult<&[u8], EncryptionSpec> {
@@ -88,4 +90,37 @@ pub fn encryption_spec(i: &[u8]) -> IResult<&[u8], EncryptionSpec> {
     let encrypt_algorithm = opt_ea.map(|t| bytes_to_string(t.3));
     let password = opt_p.map(|t| bytes_to_string(t.4));
     Ok((remaining_input, EncryptionSpec { salt_type, password, encrypt_algorithm }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_encryption_spec() {
+       assert_eq!( encryption_spec(b" USING 'test'").unwrap().1, EncryptionSpec{
+           encrypt_algorithm:Some("test".to_string()),
+           salt_type:Salt::None,
+           password:None
+       });
+        assert_eq!( encryption_spec(b"Identified by truc").unwrap().1, EncryptionSpec{
+            encrypt_algorithm:None,
+            salt_type:Salt::None,
+            password:Some("truc".to_string())
+        });
+
+        assert_eq!( encryption_spec(b"Salt").unwrap().1, EncryptionSpec{
+            encrypt_algorithm:None,
+            salt_type:Salt::Salt,
+            password:None
+        });
+    }
+
+    #[test]
+    fn test_salt() {
+        assert_eq!(salt(b"SALT").unwrap().1, Salt::Salt);
+        assert_eq!(salt(b"No salt").unwrap().1, Salt::NoSalt);
+        assert_eq!(salt(b"").unwrap().1, Salt::None);
+    }
 }

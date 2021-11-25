@@ -50,18 +50,21 @@ impl<'a> From<(&'a str, &'a str)> for Table {
 }
 
 impl Table {
-    pub fn new(name: String) -> Table {
+    pub fn new(name_table: &str) -> Table {
+        let name = name_table.to_string();
         Table {
             name,
             alias: None,
             schema: None,
         }
     }
-    pub fn new_with_schema(schema_name: String, name: String) -> Table {
+    pub fn new_with_schema(schema_name: &str, name_table: &str) -> Table {
+        let name = name_table.to_string();
+        let schema = schema_name.to_string();
         Table {
             name,
             alias: None,
-            schema: Some(schema_name),
+            schema: Some(schema),
         }
     }
 }
@@ -118,6 +121,11 @@ mod tests {
     fn test_table() {
         assert_eq!(table(b" maTable ").unwrap().1, Table {
             name: "maTable".to_string(),
+            schema: None,
+            alias: None,
+        });
+        assert_eq!(table(b" ma_Table ").unwrap().1, Table {
+            name: "ma_Table".to_string(),
             schema: None,
             alias: None,
         });

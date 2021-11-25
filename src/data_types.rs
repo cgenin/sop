@@ -17,8 +17,8 @@ use crate::table::bytes_to_string;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct NumberPrecision {
-    precision: Option<u16>,
-    scale: Option<u16>,
+    pub precision: Option<u16>,
+    pub scale: Option<u16>,
 }
 
 
@@ -238,12 +238,12 @@ pub fn data_types(i: &[u8]) -> IResult<&[u8], DataType> {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDefinition {
-    column_name: String,
-    datatype: DataType,
-    sort: bool,
-    default: Option<Expression>,
-    encrypt: Option<EncryptionSpec>,
-    inline_constraints: Vec<InlineOrOutlineConstraints>,
+    pub column_name: String,
+    pub datatype: DataType,
+    pub sort: bool,
+    pub default: Option<Expression>,
+    pub encrypt: Option<EncryptionSpec>,
+    pub inline_constraints: Vec<InlineOrOutlineConstraints>,
 }
 
 impl fmt::Display for ColumnDefinition {
@@ -258,14 +258,46 @@ impl fmt::Display for ColumnDefinition {
         if self.encrypt.is_some() {
             write!(f, " ENCRYPT {}", self.encrypt.as_ref().unwrap())?;
         }
-        let strings:Vec<String> = self.inline_constraints.iter().map(|i| format!("{}", i)).collect();
+        let strings: Vec<String> = self.inline_constraints.iter().map(|i| format!("{}", i)).collect();
         write!(f, " {}", strings.join(" "))?;
         Ok(())
     }
 }
 
+impl ColumnDefinition {
+    pub fn new(name: &str, datatype: DataType) -> ColumnDefinition {
+        let column_name = name.to_string();
+        ColumnDefinition {
+            column_name,
+            datatype,
+            sort: false,
+            default: None,
+            encrypt: None,
+            inline_constraints: Vec::new(),
+        }
+    }
+
+    pub fn with_inline_constraints(&self, constraint: InlineOrOutlineConstraints) -> ColumnDefinition {
+        let column_name = self.column_name.clone();
+        let datatype = self.datatype.clone();
+        let sort = self.sort;
+        let default = self.default.clone();
+        let encrypt = self.encrypt.clone();
+        let mut inline_constraints = self.inline_constraints.clone();
+        inline_constraints.push(constraint);
+        ColumnDefinition {
+            column_name,
+            datatype,
+            sort,
+            default,
+            encrypt,
+            inline_constraints,
+        }
+    }
+}
+
 pub fn column_definition(i: &[u8]) -> IResult<&[u8], ColumnDefinition> {
-    let (remaining_input, (cn, _, datatype, opt_sort, opt_defualt, opt_encrypt, _, inline_constraints )) = tuple((
+    let (remaining_input, (cn, _, datatype, opt_sort, opt_defualt, opt_encrypt, _, inline_constraints)) = tuple((
         sql_identifier,
         multispace1,
         data_types,
@@ -312,6 +344,7 @@ pub fn column_definition(i: &[u8]) -> IResult<&[u8], ColumnDefinition> {
 #[cfg(test)]
 mod tests {
     use crate::commons::Prefix;
+
     use super::*;
 
     #[test]
@@ -336,7 +369,7 @@ mod tests {
             column_name: "TEST1".to_string(),
             datatype: DataType::Number(NumberPrecision::new(2)),
             sort: false,
-            default: Some(Expression::Prefix(Prefix::new( "NOT", Expression::Null))),
+            default: Some(Expression::Prefix(Prefix::new("NOT", Expression::Null))),
             encrypt: None,
             inline_constraints: Vec::new(),
         });

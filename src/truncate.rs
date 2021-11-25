@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(truncate(b"TRUNCATE Table matt;").unwrap().1,
                    Truncate {
                        truncate_type: TruncateType::Table(TruncateTable {
-                           table: Table::new("matt".to_string()),
+                           table: Table::new("matt"),
                            materialized: None,
                        }),
                        storage: None,
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(truncate(b"TRUNCATE Table matt purge MATERIALIZED VIEW LOG;").unwrap().1,
                    Truncate {
                        truncate_type: TruncateType::Table(TruncateTable {
-                           table: Table::new("matt".to_string()),
+                           table: Table::new("matt"),
                            materialized: Some(MaterializedViewLogOption::Purge),
                        }),
                        storage: None,
@@ -222,7 +222,7 @@ mod tests {
         assert_eq!(truncate(b"TRUNCATE Table matt Preserve MATERIALIZED VIEW LOG;").unwrap().1,
                    Truncate {
                        truncate_type: TruncateType::Table(TruncateTable {
-                           table: Table::new("matt".to_string()),
+                           table: Table::new("matt"),
                            materialized: Some(MaterializedViewLogOption::Preserve),
                        }),
                        storage: None,
@@ -230,14 +230,14 @@ mod tests {
         assert_eq!(truncate(b"TRUNCATE Cluster matt  ;").unwrap().1,
                    Truncate {
                        truncate_type: TruncateType::Cluster(TruncateCluster {
-                           cluster_name: Table::new("matt".to_string()),
+                           cluster_name: Table::new("matt"),
                        }),
                        storage: None,
                    });
         assert_eq!(truncate(b"TRUNCATE Cluster matt  Reuse STORAGE;").unwrap().1,
                    Truncate {
                        truncate_type: TruncateType::Cluster(TruncateCluster {
-                           cluster_name: Table::new("matt".to_string()),
+                           cluster_name: Table::new("matt"),
                        }),
                        storage: Some(StorageOption::Reuse),
                    });
@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(truncate(b"TRUNCATE Table matt Preserve MATERIALIZED VIEW LOG Drop STORAGE;").unwrap().1,
                    Truncate {
                        truncate_type: TruncateType::Table(TruncateTable {
-                           table: Table::new("matt".to_string()),
+                           table: Table::new("matt"),
                            materialized: Some(MaterializedViewLogOption::Preserve),
                        }),
                        storage: Some(StorageOption::Drop),
@@ -255,17 +255,17 @@ mod tests {
     #[test]
     fn fmt_truncate_table() {
         assert_eq!(format!("{}", TruncateTable {
-            table: Table::new("maTable".to_string()),
+            table: Table::new("maTable"),
             materialized: None,
         }), " TABLE maTable");
 
         assert_eq!(format!("{}", TruncateTable {
-            table: Table::new("maTable".to_string()),
+            table: Table::new("maTable"),
             materialized: Some(MaterializedViewLogOption::Preserve),
         }), " TABLE maTable PRESERVE MATERIALIZED VIEW LOG");
 
         assert_eq!(format!("{}", TruncateTable {
-            table: Table::new_with_schema("sch".to_string(), "maTable".to_string()),
+            table: Table::new_with_schema("sch", "maTable"),
             materialized: Some(MaterializedViewLogOption::Purge),
         }), " TABLE sch.maTable PURGE MATERIALIZED VIEW LOG");
     }
