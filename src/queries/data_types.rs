@@ -9,11 +9,10 @@ use nom::IResult;
 use nom::multi::separated_list0;
 use nom::sequence::tuple;
 
-use crate::commons::{Expression, expression, len_as_u16, sql_identifier};
-use crate::constraints::{inline_or_outline_constraint, InlineOrOutlineConstraints};
-use crate::data_types::DataType::Number;
-use crate::encryption::{encryption_spec, EncryptionSpec};
-use crate::table::bytes_to_string;
+use crate::queries::commons::{Expression, expression, len_as_u16, sql_identifier, bytes_to_string};
+use crate::queries::constraints::{inline_or_outline_constraint, InlineOrOutlineConstraints};
+use crate::queries::data_types::DataType::Number;
+use crate::queries::encryption::{encryption_spec, EncryptionSpec};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct NumberPrecision {
@@ -343,7 +342,7 @@ pub fn column_definition(i: &[u8]) -> IResult<&[u8], ColumnDefinition> {
 
 #[cfg(test)]
 mod tests {
-    use crate::commons::Prefix;
+    use crate::queries::commons::Prefix;
 
     use super::*;
 

@@ -2,16 +2,14 @@ use std::fmt;
 use std::str::FromStr;
 
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case, take_while1};
+use nom::bytes::complete::{tag, tag_no_case, take_while, take_while1};
 use nom::character::{is_alphabetic, is_alphanumeric};
 use nom::character::complete::{digit1, multispace0, multispace1};
 use nom::combinator::opt;
 use nom::error::{Error, ErrorKind};
 use nom::IResult;
 use nom::multi::separated_list0;
-use nom::sequence::{delimited,  tuple};
-
-use crate::table::bytes_to_string;
+use nom::sequence::{delimited, preceded, tuple};
 
 #[inline]
 pub fn is_sql_identifier(chr: u8) -> bool {
@@ -54,7 +52,7 @@ impl fmt::Display for Parenthesis {
 }
 
 impl Parenthesis {
-   pub fn new(exp: Expression) -> Parenthesis {
+    pub fn new(exp: Expression) -> Parenthesis {
         let exp = Box::new(exp);
         Parenthesis { exp }
     }
@@ -100,7 +98,7 @@ impl fmt::Display for Operator {
 
 impl Operator {
     pub fn new(operator_nam: &str, expression_left: Expression, expression_right: Expression) -> Operator {
-        let operator_name  = operator_nam.to_string();
+        let operator_name = operator_nam.to_string();
         let exp_left = Box::new(expression_left.clone());
         let exp_right = Box::new(expression_right.clone());
         Operator { operator_name, exp_left, exp_right }
@@ -126,7 +124,7 @@ impl fmt::Display for Function {
 
 impl Function {
     pub fn new(name: &str,
-           params: Vec<Expression>) -> Function {
+               params: Vec<Expression>) -> Function {
         let function_name = name.to_string();
         let parameters = params.iter().map(|e| Box::new(e.clone())).collect();
         Function { function_name, parameters }
@@ -155,10 +153,10 @@ impl fmt::Display for ComparisonOperator {
 
 impl ComparisonOperator {
     pub fn new(preceded_op: &str,
-           name: &str,
-           exp_left: Expression,
-           params: Vec<Expression>) -> ComparisonOperator {
-        let preceded= preceded_op.to_string();
+               name: &str,
+               exp_left: Expression,
+               params: Vec<Expression>) -> ComparisonOperator {
+        let preceded = preceded_op.to_string();
         let operator_name = name.to_string();
         let expression_left = Box::new(exp_left);
         let expressions_right = params.iter().map(|e| Box::new(e.clone())).collect();
@@ -454,7 +452,6 @@ fn comparison_expression(i: &[u8]) -> IResult<&[u8], Expression> {
         multispace0,
         tag(")"),
     ))(i)?;
-
     let operation_name = bytes_to_string(op).to_uppercase();
     let preceded = bytes_to_string(prec);
     let func = ComparisonOperator::new(preceded.as_str(), operation_name.as_str(), expression_left, vec_params);
@@ -487,9 +484,52 @@ pub fn expression(i: &[u8]) -> IResult<&[u8], Expression> {
     Ok((remaining_input, expression))
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct Comment {
+    text: String,
+}
+
+impl fmt::Display for Comment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "-- {}", self.text)?;
+        Ok(())
+    }
+}
+
+impl Comment {
+    pub fn new(text_value: &str) -> Comment {
+        Comment {
+            text: text_value.to_string()
+        }
+    }
+}
+
+pub fn comment(i: &[u8]) -> IResult<&[u8], Comment> {
+    let (remaining_input, data) = preceded(
+        tag("--"),
+        take_while(|c| c != b'\n'),
+    )(i)?;
+    let is_windows_end_line = data.last()
+        .map(|c| b'\r'.eq_ignore_ascii_case(c)).unwrap_or(false);
+    if is_windows_end_line {
+        let bytes = & data[0..data.len() - 1];
+        let text = bytes_to_string(bytes);
+        return Ok((remaining_input, Comment { text }))
+    }
+    let text = bytes_to_string(data);
+    Ok((remaining_input, Comment { text }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn comments() {
+        assert_eq!(comment(b"-- TEST\n").unwrap().1, Comment::new(" TEST"));
+        assert_eq!(comment(b"-- TEST\r\n").unwrap().1, Comment::new(" TEST"));
+        assert_eq!(comment(b"--\n").unwrap().1, Comment::new(""));
+    }
 
     #[test]
     fn expressions() {
@@ -575,4 +615,8 @@ mod tests {
         assert!(sql_identifier(id5).is_err());
         assert!(sql_identifier(id6).is_ok());
     }
+}
+
+pub fn bytes_to_string(bytes: &[u8]) -> String {
+    std::str::from_utf8(bytes).unwrap().to_string()
 }

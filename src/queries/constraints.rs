@@ -9,8 +9,7 @@ use nom::IResult;
 use nom::multi::separated_list1;
 use nom::sequence::tuple;
 
-use crate::commons::sql_identifier;
-use crate::table::bytes_to_string;
+use crate::queries::commons::{sql_identifier, bytes_to_string};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ConstraintsState {

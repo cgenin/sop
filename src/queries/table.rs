@@ -7,7 +7,7 @@ use nom::combinator::opt;
 use nom::IResult;
 use nom::sequence::tuple;
 
-use crate::commons::sql_identifier;
+use crate::queries::commons::{bytes_to_string, sql_identifier};
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Table {
@@ -107,10 +107,6 @@ pub fn table(i: &[u8]) -> IResult<&[u8], Table> {
             alias,
         }
     ))
-}
-
-pub fn bytes_to_string(bytes: &[u8]) -> String {
-    std::str::from_utf8(bytes).unwrap().to_string()
 }
 
 #[cfg(test)]

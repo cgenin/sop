@@ -7,7 +7,7 @@ use nom::combinator::opt;
 use nom::IResult;
 use nom::sequence::tuple;
 
-use crate::table::{Table, table};
+use crate::queries::table::{Table, table};
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DropTable {
@@ -28,6 +28,16 @@ impl fmt::Display for DropTable {
         }
         write!(f, ";")?;
         Ok(())
+    }
+}
+
+impl DropTable {
+    pub fn new(table: &str) -> DropTable {
+        DropTable {
+            table: Table::new(table),
+            cascade_constraints: false,
+            purge: false,
+        }
     }
 }
 
@@ -80,7 +90,7 @@ mod tests {
     #[test]
     fn test_drop_table() {
         assert_eq!(drop_table(b"DROP table maTable;").unwrap().1, DropTable {
-            table: Table{
+            table: Table {
                 name: "maTable".to_string(),
                 schema: None,
                 alias: None,
@@ -90,7 +100,7 @@ mod tests {
         });
 
         assert_eq!(drop_table(b"DROP table maTable\n;").unwrap().1, DropTable {
-            table: Table{
+            table: Table {
                 name: "maTable".to_string(),
                 schema: None,
                 alias: None,
@@ -100,7 +110,7 @@ mod tests {
         });
 
         assert_eq!(drop_table(b"DROP table sch.maTable\n;").unwrap().1, DropTable {
-            table: Table{
+            table: Table {
                 name: "maTable".to_string(),
                 schema: Some("sch".to_string()),
                 alias: None,
@@ -113,7 +123,7 @@ mod tests {
     #[test]
     fn test_cascade_constraints() {
         assert_eq!(drop_table(b"DROP table maTable cascade CONSTRAINTS ;").unwrap().1, DropTable {
-            table: Table{
+            table: Table {
                 name: "maTable".to_string(),
                 schema: None,
                 alias: None,
@@ -123,7 +133,7 @@ mod tests {
         });
 
         assert_eq!(drop_table(b"DROP table maTable cascade\tCONSTRAINTS   ;").unwrap().1, DropTable {
-            table: Table{
+            table: Table {
                 name: "maTable".to_string(),
                 schema: None,
                 alias: None,
@@ -131,7 +141,6 @@ mod tests {
             cascade_constraints: true,
             purge: false,
         });
-
     }
 
     #[test]
@@ -141,7 +150,7 @@ mod tests {
         assert_eq!(purge(b"PURGE").unwrap().1, false);
 
         assert_eq!(drop_table(b"DROP table maTable purge;").unwrap().1, DropTable {
-            table: Table{
+            table: Table {
                 name: "maTable".to_string(),
                 schema: None,
                 alias: None,
@@ -149,10 +158,5 @@ mod tests {
             cascade_constraints: false,
             purge: true,
         });
-
-
-
-
-
     }
 }

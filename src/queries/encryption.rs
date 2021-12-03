@@ -7,7 +7,7 @@ use nom::combinator::opt;
 use nom::IResult;
 use nom::sequence::tuple;
 
-use crate::table::bytes_to_string;
+use crate::queries::commons::bytes_to_string;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum Salt {

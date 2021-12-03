@@ -2,14 +2,15 @@ use std::fmt;
 
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case};
-use nom::character::complete::{multispace0, multispace1};
+use nom::character::complete::{alphanumeric1, multispace0, multispace1};
 use nom::combinator::opt;
 use nom::IResult;
-use nom::multi::separated_list1;
-use nom::sequence::tuple;
+use nom::multi::{separated_list0, separated_list1};
+use nom::sequence::{preceded, tuple};
 
-use crate::data_types::{column_definition, ColumnDefinition};
-use crate::table::{bytes_to_string, Table, table};
+use crate::queries::commons::bytes_to_string;
+use crate::queries::data_types::{column_definition, ColumnDefinition};
+use crate::queries::table::{Table, table};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum CommitRows {
@@ -29,22 +30,59 @@ impl fmt::Display for CommitRows {
     }
 }
 
-pub type RelationProperties = Vec<ColumnDefinition>;
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub enum OtherProperties {
+    None,
+    Text(String),
+    TableSpace(String),
+}
+
+impl fmt::Display for OtherProperties {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OtherProperties::Text(t) => write!(f, " {}", t)?,
+            OtherProperties::TableSpace(t) => write!(f, " TABLESPACE {}", t)?,
+            OtherProperties::None => write!(f, "")?,
+        }
+        Ok(())
+    }
+}
+
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CreateTable {
     pub global_temporary: bool,
     pub table: Table,
-    pub relational_properties: RelationProperties,
+    pub relational_properties: Vec<ColumnDefinition>,
     pub commit_rows: CommitRows,
-    // TODO
-    physical_properties: bool,
-    // TODO
-    table_properties: bool,
+    pub other_properties: Vec<OtherProperties>,
 }
 
-fn relation_properties(i: &[u8]) -> IResult<&[u8], RelationProperties> {
-    let (remaining_input, (_, _, _, v, _, _)) = tuple((
+impl fmt::Display for CreateTable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "CREATE ")?;
+        if self.global_temporary {
+            write!(f, "GLOBAL TEMPORARY ")?;
+        }
+        write!(f, "TABLE {} ", self.table)?;
+        if !self.relational_properties.is_empty() {
+            let rps :Vec<String> = self.relational_properties.clone().into_iter().map(|rp| format!("{}", rp))
+                .collect();
+            write!(f, "( {} ) ", rps.join(", "))?;
+        }
+        write!(f, "{} ", self.commit_rows)?;
+        if !self.other_properties.is_empty() {
+            let rps :Vec<String> = self.other_properties.clone().into_iter().map(|rp| format!("{}", rp))
+                .collect();
+            write!(f, "{}", rps.join(" "))?;
+        }
+        write!(f, ";")
+    }
+}
+
+fn relation_properties(i: &[u8]) -> IResult<&[u8], Vec<ColumnDefinition>> {
+    let (remaining_input, (_, _, _, v, _, _, _)) = tuple((
         multispace0,
         tag("("),
         multispace0,
@@ -54,6 +92,7 @@ fn relation_properties(i: &[u8]) -> IResult<&[u8], RelationProperties> {
         ),
         multispace0,
         tag(")"),
+        multispace0,
     ))(i)?;
     Ok((remaining_input, v))
 }
@@ -79,6 +118,27 @@ fn commit_rows(i: &[u8]) -> IResult<&[u8], CommitRows> {
     Ok(result)
 }
 
+fn other_property_tablespace(i: &[u8]) -> IResult<&[u8], OtherProperties> {
+    let (remaining_input, value) = preceded(tuple((tag_no_case("TABLESPACE"), multispace1)), alphanumeric1)
+        (i)?;
+    Ok((remaining_input, OtherProperties::TableSpace(bytes_to_string(value))))
+}
+
+fn other_property_text(i: &[u8]) -> IResult<&[u8], OtherProperties> {
+    let (remaining_input, value) = alphanumeric1(i)?;
+    Ok((remaining_input, OtherProperties::Text(bytes_to_string(value))))
+}
+
+fn other_properties(i: &[u8]) -> IResult<&[u8], Vec<OtherProperties>> {
+    Ok(separated_list0(tag(" "),
+                       alt((
+                           other_property_tablespace,
+                           other_property_text,
+                       )),
+    )(i)
+        .unwrap_or((i, vec![])))
+}
+
 
 pub fn create_table(i: &[u8]) -> IResult<&[u8], CreateTable> {
     let (remaining_input, (_, _,
@@ -86,6 +146,7 @@ pub fn create_table(i: &[u8]) -> IResult<&[u8], CreateTable> {
         _,
         table,
         opt_rp,
+        other_properties,
         _)) = tuple((
         tag_no_case("CREATE"),
         multispace1,
@@ -99,6 +160,7 @@ pub fn create_table(i: &[u8]) -> IResult<&[u8], CreateTable> {
         tag_no_case("TABLE"),
         table,
         opt(relation_properties),
+        other_properties,
         tag(";")
     ))(i)?;
     let global_temporary = opt_gt.is_some();
@@ -108,16 +170,15 @@ pub fn create_table(i: &[u8]) -> IResult<&[u8], CreateTable> {
         global_temporary,
         relational_properties,
         commit_rows: CommitRows::None,
-        physical_properties: false,
-        table_properties: false,
+        other_properties,
     };
     Ok((remaining_input, create_table))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::constraints::{Constraint, InlineOrOutlineConstraints};
-    use crate::data_types::{DataType, NumberPrecision};
+    use crate::queries::constraints::{Constraint, InlineOrOutlineConstraints};
+    use crate::queries::data_types::{DataType, NumberPrecision};
 
     use super::*;
 
@@ -128,21 +189,28 @@ mod tests {
             global_temporary: false,
             relational_properties: Vec::new(),
             commit_rows: CommitRows::None,
-            physical_properties: false,
-            table_properties: false,
+            other_properties: vec![],
         });
 
         assert_eq!(create_table(b"CREATE table MA_table  (id NUMBER(12,2));").unwrap().1, CreateTable {
             table: Table::new("MA_table"),
             global_temporary: false,
             relational_properties: vec![
-                ColumnDefinition::new("id", DataType::Number(NumberPrecision::new_with_scale(12,2)))
+                ColumnDefinition::new("id", DataType::Number(NumberPrecision::new_with_scale(12, 2)))
             ],
             commit_rows: CommitRows::None,
-            physical_properties: false,
-            table_properties: false,
+            other_properties: vec![],
         });
 
+        assert_eq!(create_table(b"CREATE table MA_table  (id NUMBER(12,2)) ;").unwrap().1, CreateTable {
+            table: Table::new("MA_table"),
+            global_temporary: false,
+            relational_properties: vec![
+                ColumnDefinition::new("id", DataType::Number(NumberPrecision::new_with_scale(12, 2)))
+            ],
+            commit_rows: CommitRows::None,
+            other_properties: vec![],
+        });
     }
 
     #[test]
@@ -151,12 +219,11 @@ mod tests {
             ColumnDefinition::new("TEST1", DataType::Number(NumberPrecision::new(2)))
         ]);
         assert_eq!(relation_properties(b"(id NUMBER(12,2))").unwrap().1, vec![
-            ColumnDefinition::new("id", DataType::Number(NumberPrecision::new_with_scale(12,2)))
+            ColumnDefinition::new("id", DataType::Number(NumberPrecision::new_with_scale(12, 2)))
         ]);
         assert_eq!(relation_properties(b" (TEST1 NUMBER(2), ID VARCHAR(32))").unwrap().1, vec![
             ColumnDefinition::new("TEST1", DataType::Number(NumberPrecision::new(2))),
             ColumnDefinition::new("ID", DataType::Varchar2(32)),
-
         ]);
         assert_eq!(relation_properties(b" (TEST1 NUMBER(2), ID VARCHAR(32) PRIMARY KEY)").unwrap().1, vec![
             ColumnDefinition::new("TEST1", DataType::Number(NumberPrecision::new(2))),

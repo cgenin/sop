@@ -9,7 +9,8 @@ use nom::combinator::opt;
 use nom::IResult;
 use nom::sequence::tuple;
 
-use crate::table::{bytes_to_string, Table, table};
+use crate::queries::commons::bytes_to_string;
+use crate::queries::table::{Table, table};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum MaterializedViewLogOption {
@@ -65,6 +66,15 @@ impl fmt::Display for TruncateTable {
             .unwrap_or("".to_string());
         write!(f, " TABLE {}{}", self.table, materialized_log)?;
         Ok(())
+    }
+}
+
+impl TruncateTable {
+    pub fn new(table: &str) -> TruncateTable {
+        TruncateTable {
+            table: Table::new(table),
+            materialized: None,
+        }
     }
 }
 
@@ -162,6 +172,15 @@ impl fmt::Display for Truncate {
             .unwrap_or("".to_string());
         write!(f, "TRUNCATE {}{};", self.truncate_type, storage)?;
         Ok(())
+    }
+}
+
+impl Truncate {
+    pub fn new_table(table: &str) -> Truncate {
+        Truncate {
+            truncate_type: TruncateType::Table(TruncateTable::new(table)),
+            storage: None,
+        }
     }
 }
 
